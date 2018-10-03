@@ -74,11 +74,11 @@ class DatasetFromFolder(data.Dataset):
         target = load_img(self.image_filenames[index])
         _, file = os.path.split(self.image_filenames[index])
         
-        if self.dataset == 'DIV2K_train_LR_aug_x8':
+        if "X8" in self.dataset:
             input = load_img(os.path.join(self.lr_dir,os.path.splitext(file)[0]+'x8.png'))
-        elif self.dataset == 'DIV2K_train_LR_aug_x4':
+        elif "X4" in self.dataset:
             input = load_img(os.path.join(self.lr_dir,os.path.splitext(file)[0]+'x4.png'))
-        elif self.dataset == 'DIV2K_train_LR_aug_x2':
+        elif "X2" in self.dataset:
             input = load_img(os.path.join(self.lr_dir,os.path.splitext(file)[0]+'x2.png'))
         elif self.dataset == 'DIV2K_train_LR_difficult':
             input = load_img(os.path.join(self.lr_dir,os.path.splitext(file)[0]+'x4d.png'))

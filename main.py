@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from dbpn import Net as DBPN
 from dbpn_v1 import Net as DBPNLL
 from dbpns import Net as DBPNS
-from data import get_training_set, get_test_set
+from data import get_training_set, get_test_set, get_imagenet
 import pdb
 import socket
 import time
@@ -27,14 +27,14 @@ parser.add_argument('--lr', type=float, default=1e-4, help='Learning Rate. Defau
 parser.add_argument('--gpu_mode', type=bool, default=True)
 parser.add_argument('--threads', type=int, default=10, help='number of threads for data loader to use')
 parser.add_argument('--seed', type=int, default=123, help='random seed to use. Default=123')
-parser.add_argument('--gpus', default=4, type=float, help='number of gpu')
-parser.add_argument('--data_dir', type=str, default='./Dataset')
+parser.add_argument('--gpus', default=4, type=int, help='number of gpu')
+parser.add_argument('--data_dir', type=str, default='/home/dengzeshuai/dataset/SR_training_datasets/')
 parser.add_argument('--data_augmentation', type=bool, default=True)
-parser.add_argument('--hr_train_dataset', type=str, default='DIV2K_HR_aug')
-parser.add_argument('--train_dataset', type=str, default='DIV2K_LR_aug_x8')
-parser.add_argument('--hr_test_dataset', type=str, default='Set5')
-parser.add_argument('--test_dataset', type=str, default='Set5_LR_x4')
-parser.add_argument('--model_type', type=str, default='DBPN')
+parser.add_argument('--hr_train_dataset', type=str, default='DIV2K/DIV2K_train_HR') # 原来是DIV2K_HR_aug
+parser.add_argument('--train_dataset', type=str, default='DIV2K/DIV2K_train_LR_bicubic/X8')  # 原来是这个
+parser.add_argument('--hr_test_dataset', type=str, default='DIV2K/DIV2K_test_HR')
+parser.add_argument('--test_dataset', type=str, default="DIV2K/DIV2K_test_LR_bicubic/X8")
+parser.add_argument('--model_type', type=str, default='DBPNLL')
 parser.add_argument('--patch_size', type=int, default=32, help='Size of cropped HR image')
 parser.add_argument('--pretrained_sr', default=None, help='sr pretrained base model')
 parser.add_argument('--pretrained', type=bool, default=False)
@@ -59,11 +59,11 @@ def train(epoch):
         t0 = time.time()
         loss = criterion(model(input), target)
         t1 = time.time()
-        epoch_loss += loss.data[0]
+        epoch_loss += loss.item()
         loss.backward()
         optimizer.step()
 
-        print("===> Epoch[{}]({}/{}): Loss: {:.4f} || Timer: {:.4f} sec.".format(epoch, iteration, len(training_data_loader), loss.data[0], (t1 - t0)))
+        print("===> Epoch[{}]({}/{}): Loss: {:.4f} || Timer: {:.4f} sec.".format(epoch, iteration, len(training_data_loader), loss.item(), (t1 - t0)))
 
     print("===> Epoch {} Complete: Avg. Loss: {:.4f}".format(epoch, epoch_loss / len(training_data_loader)))
 
@@ -90,7 +90,9 @@ def print_network(net):
     print('Total number of parameters: %d' % num_params)
 
 def checkpoint(epoch):
-    model_out_path = opt.save_folder+opt.train_dataset+hostname+opt.model_type+opt.prefix+"_epoch_{}.pth".format(epoch)
+    model_out_path = opt.save_folder + opt.model_type + opt.prefix + "_epoch_{}.pth".format(epoch)
+    if not os.path.exists(opt.save_folder):
+        os.makedirs(opt.save_folder)
     torch.save(model.state_dict(), model_out_path)
     print("Checkpoint saved to {}".format(model_out_path))
 
@@ -103,10 +105,16 @@ if cuda:
     torch.cuda.manual_seed(opt.seed)
 
 print('===> Loading datasets')
-train_set = get_training_set(opt.data_dir, opt.train_dataset, opt.hr_train_dataset, opt.upscale_factor, opt.patch_size, opt.data_augmentation)
-#test_set = get_test_set(opt.data_dir, opt.test_dataset, opt.hr_test_dataset, opt.upscale_factor, opt.patch_size)
+# train data loading 
+if opt.train_dataset.count('imagenet') > 0 or opt.hr_train_dataset.count('imagenet') > 1:
+    train_set = get_imagenet(opt.data_dir, opt.upscale_factor, opt.patch_size, opt.data_augmentation)
+else:
+    train_set = get_training_set(opt.data_dir, opt.train_dataset, opt.hr_train_dataset, opt.upscale_factor, opt.patch_size, opt.data_augmentation)
 training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=True)
-#testing_data_loader = DataLoader(dataset=test_set, num_workers=opt.threads, batch_size=opt.testBatchSize, shuffle=False)
+
+# test data loading
+test_set = get_test_set(opt.data_dir, opt.test_dataset, opt.hr_test_dataset, opt.upscale_factor, opt.patch_size)
+testing_data_loader = DataLoader(dataset=test_set, num_workers=opt.threads, batch_size=opt.testBatchSize, shuffle=False)
 
 print('===> Building model ', opt.model_type)
 if opt.model_type == 'DBPNLL':
@@ -144,5 +152,5 @@ for epoch in range(1, opt.nEpochs + 1):
             param_group['lr'] /= 10.0
         print('Learning rate decay: lr={}'.format(optimizer.param_groups[0]['lr']))
             
-    if (epoch+1) % (opt.snapshots) == 0:
+    if (epoch + 1 ) % (opt.snapshots) == 0:
         checkpoint(epoch)

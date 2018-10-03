@@ -3,7 +3,7 @@ from os import makedirs, remove
 from six.moves import urllib
 import tarfile
 from torchvision.transforms import Compose, CenterCrop, ToTensor, Resize
-
+from imagenet import ImageNet
 from dataset import DatasetFromFolderEval, DatasetFromFolder
 
 def calculate_valid_crop_size(crop_size, upscale_factor):
@@ -49,3 +49,5 @@ def get_eval_set(lr_dir):
                              input_transform=input_transform(),
                              target_transform=target_transform())
 
+def get_imagenet(data_dir, upscale_factor, patch_size, data_augmentation=False, split="train", dataset_ratio=1):
+    return ImageNet(data_dir, upscale_factor, patch_size, data_augmentation, split, dataset_ratio)
